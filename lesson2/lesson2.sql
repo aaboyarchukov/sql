@@ -66,7 +66,9 @@ SELECT
     SecondD.name AS SecondDwarfName,
     R.relationship AS Relation
 FROM
-    Dwarves SecondD JOIN (
+    (
         Dwarves FirstD JOIN Relationships R 
         ON FirstD.dwarf_id = Relationships.dwarf_id
-    ) ON SecondD.dwarf_id = R.related_to;
+    
+    ) JOIN Dwarves SecondD
+      ON SecondD.dwarf_id = R.related_to;
