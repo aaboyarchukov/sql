@@ -8,12 +8,30 @@ FROM
 WHERE
     S.leader_id IS NULL;
 
+-- after reflection
+SELECT 
+    *
+FROM
+    Squads
+WHERE
+    leader_id IS NULL;
+
 -- 2. Получите список всех гномов старше 150 лет, 
 -- у которых профессия "Warrior".
 SELECT
     name,
     age,
     profession
+FROM
+    Dwarves
+WHERE 
+    age > 150
+AND
+    profession = 'Warrior';
+
+-- after refletion
+SELECT
+    *
 FROM
     Dwarves
 WHERE 
@@ -33,6 +51,15 @@ FROM
 WHERE
     I.type = 'weapon';
 
+-- after reflection
+SELECT DISTINCT
+    D.*
+FROM
+    Dwarves D JOIN Items I
+    ON D.dwarf_id = I.owner_id
+WHERE
+    I.type = 'weapon';
+
 -- 4. Получите количество задач для каждого гнома, 
 -- сгруппировав их по статусу.
 SELECT 
@@ -44,6 +71,16 @@ FROM
     Dwarves D LEFT JOIN Tasks T
     ON D.dwarf_id = T.assigned_to
 GROUP BY D.dwarf_id, D.name, T.status;
+
+-- after reflection
+SELECT
+    assigned_to,
+    status,
+    COUNT(Tasks.*) AS CountTasks
+FROM 
+    Tasks
+GROUP BY assigned_to, status;
+
 
 -- 5. Найдите все задачи, которые были назначены гномам 
 -- из отряда с именем "Guardians".
@@ -59,8 +96,33 @@ WHERE
         WHERE name = 'Guardians'
     );
 
+-- after reflection
+SELECT 
+    T.*
+FROM
+    Dwarves D JOIN Tasks T
+    ON D.dwarf_id = T.assigned_to
+WHERE 
+    D.squad_id IN (
+        SELECT squad_id FROM SquadID
+        WHERE name = 'Guardians'
+    );
+
 -- 6. Выведите всех гномов и их ближайших родственников, 
 -- указав тип родственных отношений.
+SELECT
+    FirstD.name AS FirstDwarfName,
+    SecondD.name AS SecondDwarfName,
+    R.relationship AS Relation
+FROM
+    (
+        Dwarves FirstD JOIN Relationships R 
+        ON FirstD.dwarf_id = Relationships.dwarf_id
+    
+    ) JOIN Dwarves SecondD
+      ON SecondD.dwarf_id = R.related_to;
+
+-- after reflection
 SELECT
     FirstD.name AS FirstDwarfName,
     SecondD.name AS SecondDwarfName,
