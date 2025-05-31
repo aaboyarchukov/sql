@@ -126,23 +126,23 @@ SELECT
     F.depth AS FortressDepth,
     F.population AS FortressPopulation,
     JSON_OBJECT(
-        (
-            SELECT JSON_ARRAYGG(dwarf_id) FROM Dwarves
-            WHERE fortress_id = F.fortress_id
-        ),
-        (
-            SELECT JSON_ARRAYGG(resource_id) FROM Fortress_Resources
-            WHERE fortress_id = F.fortress_id
-        ),
-        (
-            SELECT JSON_ARRAYGG(workshop_id) FROM Workshops
-            WHERE fortress_id = F.fortress_id
-        ),
-        (
-            SELECT JSON_ARRAYGG(squad_id) FROM Military_Squads
-            WHERE fortress_id = F.fortress_id
-        ),
-    )
+        ('dwarves_ids', (
+            SELECT JSON_ARRAYGG(D.dwarf_id) FROM Dwarves D
+            WHERE D.fortress_id = F.fortress_id
+        )),
+        ('resources_ids', (
+            SELECT JSON_ARRAYGG(FR.resource_id) FROM Fortress_Resources FR
+            WHERE FR.fortress_id = F.fortress_id
+        )),
+        ('workshops_ids', (
+            SELECT JSON_ARRAYGG(W.workshop_id) FROM Workshops W
+            WHERE W.fortress_id = F.fortress_id
+        )),
+        ('military_squads_ids', (
+            SELECT JSON_ARRAYGG(MS.squad_id) FROM Military_Squads MS
+            WHERE MS.fortress_id = F.fortress_id
+        ))
+    ) as fortress_info
 FROM 
     Fortresses F;
 ```
