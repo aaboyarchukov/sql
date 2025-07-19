@@ -58,18 +58,22 @@ squads_equipment_info AS (
 
     GROUP BY MS.squad_id
 ),
-
--- изменить нахождение среднего значения улучшения навыка (необходимо провести зависимость с тренировками, а точнее с датой их проведения) 
+ 
 dawrves_skills_in_squad AS (
     SELECT
         SM.squad_id,
-        AVG(MAX(DS.level) - MIN(DS.level)) AS avg_combat_skill_improvement,
+        -- AVG(MAX(DS.level) - MIN(DS_before.level)) AS avg_combat_skill_improvement,
+        AVG(DS.level - DS_before.level) AS avg_combat_skill_improvement,
 
-    FROM Squad_Members SM 
-    JOIN Dwarf_Skills DS ON SM.dwarf_id = DS.dwarf_id
-    JOIN Skills S ON DS.skill_id = S.skill_id
+    FROM Squad_Members SM
+    JOIN Squad_Training ST ON SM.squad_id = ST.squad_id 
+    JOIN Dwarves D ON SM.dwarf_id = D.dwarf_id
+    JOIN Dwarf_Skills DS_before ON D.dwarf_id = DS_before.dwarf_id
+    JOIN Dwarf_Skills DS_after ON D.dwarf_id = DS_after.dwarf_id AND DS_before.skill_id = DS_after.skill_id 
+    JOIN Skills S ON DS_before.skill_id = S.skill_id
+    JOIN Skills S ON DS_after.skill_id = S.skill_id
 
-    WHERE S.name = 'Combat'
+    WHERE S.name = 'Combat' AND DS_before.date < ST.date + ST.duration_hours AND DS_after.date > ST.date + ST.duration_hours
     
     GROUP BY SM.squad_id
 )
@@ -93,9 +97,18 @@ SELECT
     CORR(ROUND(ti.avg_training_effectiveness * 100, 2), 
         ROUND(( bi.victories :: DECIMAL / NULLIF(bi.total_battles :: DECIMAL, 0) ) * 100, 2)
     ) AS training_battle_correlation,
-
-    -- dsis.avg_combat_skill_improvement,
-    -- AS overall_effectiveness_score,
+    dsis.avg_combat_skill_improvement,
+    ROUND(
+        ROUND(bi.victories :: DECIMAL * 0.4 + bi.losses :: DECIMAL * 0.4 + bi.casualties :: DECIMAL * 0.2, 2) * 0.25 +
+        ROUND(( bi.victories :: DECIMAL / NULLIF(bi.total_battles :: DECIMAL, 0) ), 2) * 0.15 +
+        dsis.avg_combat_skill_improvement :: DECIMAL * 0.15 +
+        sei.avg_equipment_quality :: DECIMAL * 0.15 +
+        CORR(ROUND(ti.avg_training_effectiveness * 100, 2), 
+            ROUND(( bi.victories :: DECIMAL / NULLIF(bi.total_battles :: DECIMAL, 0) ) * 100, 2)
+        ) * 0.15 +
+        ROUND(bi.casualties :: DECIMAL / NULLIF(bi.enemy_casualties, 0), 2) * 0.15
+    , 2)
+    AS overall_effectiveness_score,
     
     JSON_OBJECT(
         'member_ids', (
