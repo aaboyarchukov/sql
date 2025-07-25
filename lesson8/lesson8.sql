@@ -25,7 +25,10 @@ WITH trades_info AS (
                 'total_trade_value', (SUM(TT.value)),
                 'trade_balance', (SUM(TT.balance_direction)),
                 'trade_relationship', (DE.relationship_change),
-                'diplomatic_correlation', (CORR()),
+                'diplomatic_correlation', (CORR(
+                    SUM(TT.value), 
+                    CASE WHEN DE.relationship_change = 'Favorable' THEN 1 ELSE 0 END
+                )),
                 'caravan_ids', (JSON_ARRAYAGG(C.caravan_id)) 
             )
         ) AS civilization_trade_data
@@ -40,7 +43,14 @@ WITH trades_info AS (
         JSON_ARRAYAGG(
             JSON_OBJECT(
                 'material_type', (CG.material_type),
-                'dependency_score', (),
+                'dependency_score', (
+                    ROUND(
+                        SUM(CASE WHEN CG.goods_id IN TT.caravan_items THEN 1  ELSE 0 END) :: DECIMAL
+                        /
+                        NULLIF(SUM(FR.quantity) :: DECIMAL, 0), 
+                        1
+                    )
+                ),
                 'total_imported', (SUM(CASE WHEN CG.goods_id IN TT.caravan_items THEN 1  ELSE 0 END)),
                 'import_diversity', (COUNT(DISTINCT TT.caravan_id)),
                 'resource_ids', (JSON_ARRAYAGG(DISTINCT R.resource_id))
@@ -49,6 +59,7 @@ WITH trades_info AS (
     FROM Caravan_Goods CG
     LEFT JOIN Trade_Transactions TT ON CG.caravan_id = TT.caravan_id AND CG.type = 'import'
     JOIN Resources R ON CS.material_type = R.type
+    JOIN Fortress_Resources FR ON CS.material_type = FR.resource_id
     GROUP BY CG.material_type
 ), export_effectiveness AS (
     SELECT 
@@ -56,18 +67,24 @@ WITH trades_info AS (
             JSON_OBJECT(
                 'workshop_type', (W.type),
                 'product_type', (P.type),
-                'export_ratio', (ROUND(
-                    SUM(CASE WHEN CG.goods_id IN TT.caravan_items THEN 1 ELSE 0 END) / 
-                )),
-                'avg_markup', (),
+                'export_ratio', (
+                    ROUND(
+                        SUM(CASE WHEN CG.goods_id IN TT.caravan_items THEN 1  ELSE 0 END) :: DECIMAL
+                        /
+                        NULLIF(SUM(FR.quantity) :: DECIMAL, 0), 
+                        1
+                    )
+                ),
+                'avg_markup', AVG(TT.value :: INTEGER - CG.value :: INTEGER),
                 'workshop_ids', (JSON_ARRAYAGG(DISTINCT W.workshop_id))
             )
         ) AS export_effectiveness
     FROM Caravan_Goods CG
-    LEFT JOIN Trade_Transactions TT ON CG.caravan_id = TT.caravan_id AND CG.type = 'import'
+    LEFT JOIN Trade_Transactions TT ON CG.caravan_id = TT.caravan_id AND CG.type = 'export'
     LEFT JOIN Caravans C ON CG.caravan_id = C.caravan_id
-    LEFT JOIN Fortresses F ON C. fortress_id = F.fortress_id
-    LEFT JOIN Workshops W ON F.workshop_id = W.workshop_id  
+    LEFT JOIN Fortresses F ON C.fortress_id = F.fortress_id
+    LEFT JOIN Workshops W ON F.workshop_id = W.workshop_id
+    LEFT JOIN Fortress_Resources FR ON CS.material_type = FR.resource_id  
     LEFT JOIN Products P ON P.product_id = C.original_product_id
 
     GROUP BY W.type, P.type
@@ -86,3 +103,14 @@ WITH trades_info AS (
 
     GROUP BY EXTRACT(YEAR FROM TT.date), QUARTER(TT.date)
 )
+
+SELECT 
+    ti.total_trading_partners, 
+    ti.all_time_trade_value, 
+    ti.all_time_trade_balance,
+    JSON_OBJECT('civilization_data', cd),
+    JSON_OBJECT('critical_import_dependencies', cid),
+    JSON_OBJECT('export_effectiveness', ee),
+    JSON_OBJECT('trade_timeline', tt),
+FROM trades_info ti, civilization_data cd, critical_import_dependencies cid, export_effectiveness ee, trade_timeline tt;
+
